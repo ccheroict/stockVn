@@ -29,6 +29,14 @@ async function main() {
   const token = fs.readFileSync(TOKEN_FILE, "utf8").trim();
   const filter = JSON.parse(fs.readFileSync(FILTER_FILE, "utf8"));
 
+  // Derive tcbsID from the JWT (kept out of the committed filter.json).
+  if (!filter.tcbsID) {
+    try {
+      const payload = JSON.parse(Buffer.from(token.split(".")[1].replace(/-/g, "+").replace(/_/g, "/"), "base64").toString());
+      filter.tcbsID = payload.tcbsId || payload.sub || "";
+    } catch (e) { filter.tcbsID = ""; }
+  }
+
   const r = await fetch(URL, {
     method: "POST",
     headers: {

@@ -1,5 +1,4 @@
 {
-  "tcbsID": "10000360031",
   "size": 500,
   "filters": [
     { "key": "exchangeName", "operator": "=", "value": "HOSE,HNX,UPCOM" },
