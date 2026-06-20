@@ -1,0 +1,13 @@
+{
+  "tcbsID": "10000360031",
+  "size": 500,
+  "filters": [
+    { "key": "exchangeName", "operator": "=", "value": "HOSE,HNX,UPCOM" },
+    { "key": "totalTradingValue", "operator": ">=", "value": 0.5 },
+    { "key": "totalTradingValue", "operator": "<=", "value": 76 },
+    { "key": "priceGrowth1Day", "operator": ">=", "value": 1 },
+    { "key": "priceGrowth1Day", "operator": "<=", "value": 15 },
+    { "key": "relativeStrength3Day", "operator": ">=", "value": 20 },
+    { "key": "relativeStrength3Day", "operator": "<=", "value": 100 }
+  ]
+}

@@ -1,0 +1,11 @@
+# Secrets & session (full account access — never commit)
+.tcbs_token
+.tcbs-profile/
+
+# Generated data & logs
+data/
+logs/
+
+# Node
+node_modules/
+package-lock.json

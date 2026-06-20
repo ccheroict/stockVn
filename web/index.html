@@ -1,0 +1,338 @@
+<!DOCTYPE html>
+<html lang="vi">
+<head>
+  <meta charset="UTF-8" />
+  <meta name="viewport" content="width=device-width, initial-scale=1.0" />
+  <title>stockVn — Phân tích kỹ thuật</title>
+  <script src="https://cdn.jsdelivr.net/npm/klinecharts@9.8.9/dist/umd/klinecharts.min.js"></script>
+  <style>
+    * { box-sizing: border-box; }
+    html, body { margin: 0; height: 100%; font-family: system-ui, "Segoe UI", sans-serif; background: #0e0f14; color: #d6d9e0; }
+    #bar {
+      display: flex; align-items: center; gap: 8px; flex-wrap: wrap;
+      padding: 8px 12px; background: #15171f; border-bottom: 1px solid #262a36;
+    }
+    #bar select, #bar button {
+      background: #1e2230; color: #d6d9e0; border: 1px solid #313747;
+      border-radius: 6px; padding: 6px 10px; font-size: 13px; cursor: pointer;
+    }
+    #bar select { min-width: 110px; }
+    #bar button:hover { background: #2a3142; }
+    #bar button.active { background: #2f6df6; border-color: #2f6df6; color: #fff; }
+    .group { display: flex; gap: 6px; align-items: center; }
+    .dd { position: relative; }
+    .menu {
+      position: absolute; top: calc(100% + 6px); left: 0; z-index: 50;
+      background: #181b24; border: 1px solid #313747; border-radius: 8px;
+      padding: 6px; min-width: 210px; box-shadow: 0 8px 24px rgba(0,0,0,.45);
+      display: flex; flex-direction: column; gap: 2px; max-height: 70vh; overflow: auto;
+    }
+    .menu.hidden { display: none; }
+    .menu .hdr { font-size: 11px; color: #8a90a0; padding: 7px 8px 3px; text-transform: uppercase; letter-spacing: .04em; }
+    .menu .row { display: flex; align-items: center; gap: 8px; padding: 5px 8px; border-radius: 6px; }
+    .menu .row:hover { background: #222633; }
+    .menu .row label { flex: 1; font-size: 13px; cursor: pointer; display: flex; align-items: center; gap: 8px; }
+    .menu .row input[type=text] { width: 120px; background: #1e2230; color: #d6d9e0; border: 1px solid #313747; border-radius: 6px; padding: 5px 6px; font-size: 12px; }
+    .menu .row input[type=checkbox] { width: 15px; height: 15px; accent-color: #2f6df6; }
+    /* quick-config popover (double-click on a pane) */
+    .qcfg {
+      position: fixed; z-index: 60; background: #181b24;
+      border: 1px solid #3a4055; border-radius: 8px; padding: 6px; min-width: 220px;
+      box-shadow: 0 10px 28px rgba(0,0,0,.5); display: flex; flex-direction: column; gap: 2px;
+    }
+    .qcfg.hidden { display: none; }
+    .qcfg .hdr { font-size: 11px; color: #8a90a0; padding: 5px 8px 4px; text-transform: uppercase; letter-spacing: .04em; }
+    .qcfg .row { display: flex; align-items: center; gap: 8px; padding: 5px 8px; }
+    .qcfg .row label { flex: 1; font-size: 13px; }
+    .qcfg .row input[type=text] { width: 120px; background: #1e2230; color: #d6d9e0; border: 1px solid #313747; border-radius: 6px; padding: 5px 6px; font-size: 12px; }
+    .sep { width: 1px; height: 22px; background: #313747; margin: 0 4px; }
+    .label { font-size: 12px; color: #8a90a0; }
+
+    #main { display: flex; height: calc(100vh - 51px); }
+    /* left vertical drawing toolbar (TradingView-style) */
+    #tools {
+      width: 46px; flex: 0 0 46px; background: #15171f; border-right: 1px solid #262a36;
+      display: flex; flex-direction: column; align-items: center; padding: 8px 0; gap: 4px;
+    }
+    #tools button {
+      width: 34px; height: 34px; border: 1px solid transparent; border-radius: 8px;
+      background: transparent; color: #c2c7d2; font-size: 16px; cursor: pointer;
+      display: flex; align-items: center; justify-content: center;
+    }
+    #tools button:hover { background: #2a3142; }
+    #tools button.active { background: #2f6df6; color: #fff; }
+    #tools button svg { width: 20px; height: 20px; fill: none; stroke: currentColor; stroke-width: 1.6; stroke-linecap: round; stroke-linejoin: round; }
+    #tools button svg circle.dot { fill: currentColor; stroke: none; }
+    #tools .tsep { width: 26px; height: 1px; background: #313747; margin: 4px 0; }
+    #chart { flex: 1 1 auto; height: 100%; }
+  </style>
+</head>
+<body>
+  <div id="bar">
+    <div class="group">
+      <span class="label">Mã</span>
+      <select id="symbol"></select>
+    </div>
+    <div class="sep"></div>
+    <div class="group dd">
+      <button id="indBtn">Chỉ báo ▾</button>
+      <div id="indMenu" class="menu hidden"></div>
+    </div>
+    <div class="group dd">
+      <button id="setBtn">⚙ Cấu hình</button>
+      <div id="setMenu" class="menu hidden"></div>
+    </div>
+  </div>
+
+  <div id="main">
+    <div id="tools">
+      <button data-tool="" title="Con trỏ (thoát chế độ vẽ)" class="active">
+        <svg viewBox="0 0 24 24"><path d="M5 3l14 6.5-6.2 1.8L10 18z" fill="currentColor" stroke="none"/></svg>
+      </button>
+      <div class="tsep"></div>
+      <button data-tool="segment" title="Đường xu hướng">
+        <svg viewBox="0 0 24 24"><line x1="5" y1="19" x2="19" y2="5"/><circle class="dot" cx="5" cy="19" r="2.2"/><circle class="dot" cx="19" cy="5" r="2.2"/></svg>
+      </button>
+      <button data-tool="rayLine" title="Tia">
+        <svg viewBox="0 0 24 24"><circle class="dot" cx="5" cy="19" r="2.2"/><line x1="6.5" y1="17.5" x2="21" y2="3"/></svg>
+      </button>
+      <button data-tool="straightLine" title="Đường thẳng (kéo dài 2 đầu)">
+        <svg viewBox="0 0 24 24"><line x1="3" y1="21" x2="21" y2="3"/><circle class="dot" cx="12" cy="12" r="2.2"/></svg>
+      </button>
+      <button data-tool="horizontalStraightLine" title="Đường ngang">
+        <svg viewBox="0 0 24 24"><line x1="3" y1="12" x2="21" y2="12"/><circle class="dot" cx="12" cy="12" r="2.2"/></svg>
+      </button>
+      <button data-tool="verticalStraightLine" title="Đường dọc">
+        <svg viewBox="0 0 24 24"><line x1="12" y1="3" x2="12" y2="21"/><circle class="dot" cx="12" cy="12" r="2.2"/></svg>
+      </button>
+      <button data-tool="priceLine" title="Đường giá">
+        <svg viewBox="0 0 24 24"><line x1="3" y1="12" x2="14" y2="12" stroke-dasharray="3 2"/><rect x="14.5" y="8.5" width="7" height="7" rx="1.5"/></svg>
+      </button>
+      <button data-tool="parallelStraightLine" title="Kênh song song">
+        <svg viewBox="0 0 24 24"><line x1="3" y1="15" x2="17" y2="3"/><line x1="7" y1="21" x2="21" y2="9"/></svg>
+      </button>
+      <div class="tsep"></div>
+      <button data-tool="fibonacciLine" title="Fibonacci">
+        <svg viewBox="0 0 24 24"><line x1="4" y1="5" x2="20" y2="5"/><line x1="4" y1="10" x2="20" y2="10"/><line x1="4" y1="14" x2="20" y2="14"/><line x1="4" y1="19" x2="20" y2="19"/></svg>
+      </button>
+      <button data-tool="rect" title="Hình chữ nhật">
+        <svg viewBox="0 0 24 24"><rect x="4" y="6" width="16" height="12" rx="1.5"/></svg>
+      </button>
+      <button data-tool="circle" title="Hình tròn">
+        <svg viewBox="0 0 24 24"><circle cx="12" cy="12" r="8"/></svg>
+      </button>
+      <div class="tsep"></div>
+      <button id="removeAll" title="Xóa hết hình vẽ">
+        <svg viewBox="0 0 24 24"><path d="M5 7h14M10 7V5h4v2M6 7l1 13h10l1-13"/></svg>
+      </button>
+    </div>
+    <div id="chart"></div>
+  </div>
+
+  <div id="quickCfg" class="qcfg hidden"></div>
+
+  <script>
+    const chart = klinecharts.init("chart", {
+      styles: {
+        grid: { horizontal: { color: "#20242f" }, vertical: { color: "#20242f" } },
+        candle: {
+          bar: {
+            upColor: "#26a69a", downColor: "#ef5350",
+            upBorderColor: "#26a69a", downBorderColor: "#ef5350",
+            upWickColor: "#26a69a", downWickColor: "#ef5350",
+          },
+          tooltip: { text: { color: "#d6d9e0" } },
+        },
+      },
+    });
+    window.chart = chart; // for debugging in console
+    chart.setPriceVolumePrecision(0, 0);
+
+    // ---- indicators (dropdown list + settings panel, editable calcParams) ----
+    const LINE_COLORS = ["#f5a623", "#2f6df6", "#26a69a", "#e040fb", "#ef5350", "#00bcd4"];
+    chart.setStyles({ indicator: { lines: LINE_COLORS.map((color) => ({ color })) } });
+
+    const INDICATORS = [
+      { name: "MA", pane: "main", def: "10,20,50,200", hint: "Chu kỳ, cách nhau bằng dấu phẩy" },
+      { name: "EMA", pane: "main", def: "6,12,20", hint: "Chu kỳ" },
+      { name: "BOLL", pane: "main", def: "20,2", hint: "Chu kỳ, hệ số độ lệch chuẩn" },
+      { name: "SAR", pane: "main", def: "2,2,20", hint: "start, step, max" },
+      { name: "VOL", pane: "sub", def: "5,10,20", hint: "Chu kỳ MA khối lượng" },
+      { name: "MACD", pane: "sub", def: "12,26,9", hint: "nhanh, chậm, signal" },
+      { name: "RSI", pane: "sub", def: "6,12,24", hint: "Chu kỳ" },
+      { name: "KDJ", pane: "sub", def: "9,3,3", hint: "K, D, J" },
+    ];
+    const META = {}; INDICATORS.forEach((i) => (META[i.name] = i));
+    const state = {}; // name -> { on, paneId }
+
+    // ---- persistence (localStorage) ----
+    const LS_KEY = "stockVn.indicators";
+    function saveConfig() {
+      const cfg = { on: [], params: {} };
+      Object.keys(state).forEach((n) => { if (state[n] && state[n].on) cfg.on.push(n); });
+      document.querySelectorAll("[data-params]").forEach((inp) => { cfg.params[inp.dataset.params] = inp.value; });
+      try { localStorage.setItem(LS_KEY, JSON.stringify(cfg)); } catch (e) {}
+    }
+    function loadConfig() { try { return JSON.parse(localStorage.getItem(LS_KEY)); } catch (e) { return null; } }
+
+    function paramInput(name) { return document.querySelector(`[data-params="${name}"]`); }
+    function readParams(name) {
+      const inp = paramInput(name);
+      let p = inp.value.split(",").map((x) => parseInt(x.trim(), 10)).filter((n) => n > 0);
+      if (!p.length) p = META[name].def.split(",").map(Number);
+      inp.value = p.join(",");
+      return p;
+    }
+    function setChecked(name, on) { const cb = document.querySelector(`[data-ind-cb="${name}"]`); if (cb) cb.checked = on; }
+
+    // apply the params currently in an indicator's settings input to the live chart
+    function applyParams(name) {
+      const p = readParams(name);
+      const st = state[name];
+      if (st && st.on) chart.overrideIndicator({ name, calcParams: p }, st.paneId);
+      saveConfig();
+      return p;
+    }
+
+    function turnOn(name) {
+      const pane = META[name].pane;
+      const created = chart.createIndicator({ name, calcParams: readParams(name) }, pane === "main", pane === "main" ? { id: "candle_pane" } : {});
+      const paneId = pane === "main" ? "candle_pane" : created;
+      state[name] = { on: true, paneId };
+      const m = chart.getIndicatorByPaneId(paneId);
+      const ind = m && (m.get ? m.get(name) : m[name]);
+      if (ind && ind.calcParams) paramInput(name).value = ind.calcParams.join(",");
+      setChecked(name, true);
+      saveConfig();
+    }
+    function turnOff(name) {
+      const st = state[name];
+      if (st) { chart.removeIndicator(st.paneId, name); st.on = false; }
+      setChecked(name, false);
+      saveConfig();
+    }
+
+    // build the dropdown list + settings panel from metadata
+    (function buildMenus() {
+      const indMenu = document.getElementById("indMenu");
+      const setMenu = document.getElementById("setMenu");
+      const hdr = (t) => { const d = document.createElement("div"); d.className = "hdr"; d.textContent = t; return d; };
+      let lastPane = null;
+      INDICATORS.forEach((i) => {
+        if (i.pane !== lastPane) {
+          indMenu.appendChild(hdr(i.pane === "main" ? "Chỉ báo chính (overlay)" : "Chỉ báo phụ (pane riêng)"));
+          setMenu.appendChild(hdr(i.pane === "main" ? "Chỉ báo chính" : "Chỉ báo phụ"));
+          lastPane = i.pane;
+        }
+        const row = document.createElement("div"); row.className = "row";
+        row.innerHTML = `<label><input type="checkbox" data-ind-cb="${i.name}"> ${i.name}</label>`;
+        indMenu.appendChild(row);
+        const srow = document.createElement("div"); srow.className = "row";
+        srow.innerHTML = `<label>${i.name}</label><input type="text" data-params="${i.name}" value="${i.def}" title="${i.hint || ""}">`;
+        setMenu.appendChild(srow);
+      });
+      indMenu.querySelectorAll("[data-ind-cb]").forEach((cb) =>
+        cb.addEventListener("change", () => { cb.checked ? turnOn(cb.dataset.indCb) : turnOff(cb.dataset.indCb); }));
+      setMenu.querySelectorAll("[data-params]").forEach((inp) =>
+        inp.addEventListener("change", () => { applyParams(inp.dataset.params); }));
+    })();
+
+    // dropdown open/close
+    function setupMenu(btnId, menuId) {
+      const btn = document.getElementById(btnId), menu = document.getElementById(menuId);
+      btn.addEventListener("click", (e) => {
+        e.stopPropagation();
+        document.querySelectorAll(".menu").forEach((m) => { if (m !== menu) m.classList.add("hidden"); });
+        menu.classList.toggle("hidden");
+      });
+      menu.addEventListener("click", (e) => e.stopPropagation());
+    }
+    setupMenu("indBtn", "indMenu");
+    setupMenu("setBtn", "setMenu");
+
+    // ---- double-click a pane -> quick-config popover for that pane's indicators ----
+    const q = document.getElementById("quickCfg");
+    q.addEventListener("click", (e) => e.stopPropagation());
+    let currentPaneId = null;
+    chart.subscribeAction("onCrosshairChange", (d) => { if (d && d.paneId) currentPaneId = d.paneId; });
+
+    function openQuickConfig(paneId, x, y) {
+      const names = Object.keys(state).filter((n) => state[n] && state[n].on && state[n].paneId === paneId);
+      if (!names.length) return;
+      q.innerHTML = '<div class="hdr">Cấu hình chỉ báo</div>' +
+        names.map((n) => `<div class="row"><label>${n}</label><input type="text" data-q="${n}" value="${paramInput(n).value}" title="${META[n].hint || ""}"></div>`).join("");
+      q.querySelectorAll("[data-q]").forEach((inp) =>
+        inp.addEventListener("change", () => {
+          const n = inp.dataset.q;
+          paramInput(n).value = inp.value;     // mirror into the settings panel input
+          applyParams(n);
+          inp.value = paramInput(n).value;     // reflect normalized value
+        }));
+      q.classList.remove("hidden");
+      q.style.left = Math.min(x, window.innerWidth - q.offsetWidth - 12) + "px";
+      q.style.top = Math.min(y, window.innerHeight - q.offsetHeight - 12) + "px";
+      const f = q.querySelector("input"); if (f) { f.focus(); f.select(); }
+    }
+    document.getElementById("chart").addEventListener("dblclick", (e) => {
+      if (currentPaneId) openQuickConfig(currentPaneId, e.clientX, e.clientY);
+    });
+
+    document.addEventListener("click", () => {
+      document.querySelectorAll(".menu").forEach((m) => m.classList.add("hidden"));
+      q.classList.add("hidden");
+    });
+
+    // ---- drawing toolbar ----
+    const toolButtons = document.querySelectorAll("#tools [data-tool]");
+    function setActiveTool(btn) {
+      toolButtons.forEach((b) => b.classList.toggle("active", b === btn));
+    }
+    toolButtons.forEach((b) =>
+      b.addEventListener("click", () => {
+        setActiveTool(b);
+        const tool = b.dataset.tool;
+        if (tool) {
+          // create an overlay; when finished, KLineCharts fires drawEnd -> reset to cursor
+          chart.createOverlay({
+            name: tool,
+            onDrawEnd: () => { setActiveTool(document.querySelector('[data-tool=""]')); return false; },
+          });
+        }
+      }));
+    document.getElementById("removeAll").addEventListener("click", () => {
+      chart.removeOverlay();
+      setActiveTool(document.querySelector('[data-tool=""]'));
+    });
+
+    // ---- data ----
+    async function loadSymbol(sym) {
+      const data = await fetch("/api/ohlc?symbol=" + encodeURIComponent(sym)).then((r) => r.json());
+      chart.applyNewData(data);
+    }
+
+    async function init() {
+      const symbols = await fetch("/api/symbols").then((r) => r.json());
+      const sel = document.getElementById("symbol");
+      sel.innerHTML = symbols.map((s) => `<option value="${s}">${s}</option>`).join("");
+      sel.addEventListener("change", () => loadSymbol(sel.value));
+
+      const saved = loadConfig();
+      if (saved && Array.isArray(saved.on)) {
+        Object.entries(saved.params || {}).forEach(([n, v]) => {
+          const inp = paramInput(n);
+          if (inp) inp.value = v;
+        });
+        saved.on.forEach((n) => { if (META[n]) turnOn(n); });
+      } else {
+        turnOn("MA");
+        turnOn("VOL");
+      }
+
+      if (symbols.length) loadSymbol(symbols[0]);
+    }
+
+    init();
+    window.addEventListener("resize", () => chart.resize());
+  </script>
+</body>
+</html>
